@@ -2,6 +2,7 @@
 #define ABSTRACTREFEREE_H
 
 #include "card.h"
+#include "combinations.h"
 
 template<class T>
 class AbstractReferee
@@ -15,7 +16,7 @@ public:
      * @param hands(key is a player, value is his hand)
      * @return any winner or winners
      */
-    virtual std::vector<T> refereeing(const std::map<T,Hand&> &hands) = 0;
+    virtual std::map<T,Combination> refereeing(const std::map<T,Hand&> &hands) = 0;
 };
 
 

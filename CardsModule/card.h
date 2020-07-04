@@ -3,6 +3,7 @@
 
 #include <map>
 #include <vector>
+#include <math.h>
 
 enum class SUIT
 {
@@ -14,6 +15,7 @@ enum class SUIT
 
 enum class VALUES_CARDS
 {
+    ACE_AS_ONE,
     TWO,
     THREE,
     FOUR,
@@ -39,6 +41,7 @@ const std::vector<SUIT> SUITS
 
 const std::vector<VALUES_CARDS> VALUES
 {
+    VALUES_CARDS::ACE_AS_ONE,
     VALUES_CARDS::TWO,
     VALUES_CARDS::THREE,
     VALUES_CARDS::FOUR,
@@ -56,25 +59,66 @@ const std::vector<VALUES_CARDS> VALUES
 
 const std::map<VALUES_CARDS,uint32_t> PRIORITY_CARDS
 {
-    {VALUES_CARDS::TWO,1},
-    {VALUES_CARDS::THREE,2},
-    {VALUES_CARDS::FOUR,3},
-    {VALUES_CARDS::FIVE,4},
-    {VALUES_CARDS::SIX,5},
-    {VALUES_CARDS::SEVEN,6},
-    {VALUES_CARDS::EIGHT,7},
-    {VALUES_CARDS::NINE,8},
-    {VALUES_CARDS::TEEN,9},
-    {VALUES_CARDS::JACK,10},
-    {VALUES_CARDS::QUEEN,11},
-    {VALUES_CARDS::KING,12},
-    {VALUES_CARDS::ACE,13}
+    {VALUES_CARDS::ACE_AS_ONE,  std::pow(2,0)},
+    {VALUES_CARDS::TWO,         std::pow(2,1)},
+    {VALUES_CARDS::THREE,       std::pow(2,2)},
+    {VALUES_CARDS::FOUR,        std::pow(2,3)},
+    {VALUES_CARDS::FIVE,        std::pow(2,4)},
+    {VALUES_CARDS::SIX,         std::pow(2,5)},
+    {VALUES_CARDS::SEVEN,       std::pow(2,6)},
+    {VALUES_CARDS::EIGHT,       std::pow(2,7)},
+    {VALUES_CARDS::NINE,        std::pow(2,8)},
+    {VALUES_CARDS::TEEN,        std::pow(2,9)},
+    {VALUES_CARDS::JACK,        std::pow(2,10)},
+    {VALUES_CARDS::QUEEN,       std::pow(2,11)},
+    {VALUES_CARDS::KING,        std::pow(2,12)},
+    {VALUES_CARDS::ACE,         std::pow(2,13)}
 };
 
 struct Card
 {
     VALUES_CARDS value;
     SUIT suit;
+
+    /*Card()
+    {
+        value = VALUES_CARDS::ACE_AS_ONE;
+        suit = SUIT::CLUBS;
+    }
+
+    Card(const Card& item)
+    {
+        value = item.value;
+        suit = item.suit;
+    }
+
+    Card(Card&& item)
+    {
+        value = item.value;
+        suit = item.suit;
+    }
+
+    Card& operator=(const Card& item)
+    {
+       if(this != &item)
+       {
+           value = item.value;
+           suit = item.suit;
+       }
+       return *this;
+    }
+
+    Card& operator=(Card&& item)
+    {
+       if(this != &item)
+       {
+           value = item.value;
+           suit = item.suit;
+       }
+       return *this;
+    }
+
+    virtual ~Card(){}*/
 };
 
 using Hand = std::vector<Card>;

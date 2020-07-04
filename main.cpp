@@ -1,9 +1,12 @@
 #include <iostream>
-
+#include <CardsModule/referee.h>
 using namespace std;
+
 
 int main()
 {
-    cout << "Hello World!" << endl;
+    Referee<int> referee;
+
+
     return 0;
 }
