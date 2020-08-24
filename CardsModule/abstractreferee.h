@@ -16,7 +16,7 @@ public:
      * @param hands(key is a player, value is his hand)
      * @return any winner or winners
      */
-    virtual std::map<T,Combination> refereeing(const std::map<T,Hand&> &hands) = 0;
+    virtual std::map<T,Combination> refereeing(const std::map<T,Hand> &hands) = 0;
 };
 
 

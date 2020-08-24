@@ -13,19 +13,23 @@ template<class T>
 class Referee : public AbstractReferee<T>
 {
 
+    using Straights = std::vector<std::pair<uint64_t,size_t>>;
+    using StraightFlushes = Straights;
+    using Flushes = std::vector<std::pair<Hand, uint64_t>>;
+
 public:
     Referee(){}
     virtual ~Referee(){}
 
 
-    virtual std::map<T,Combination> refereeing(const std::map<T,Hand&> &hands)
+    virtual std::map<T,Combination> refereeing(const std::map<T,Hand> &hands)
     {
         //std::map<T,std::future<std::pair<Combination,uint64_t>>> scores;
         std::map<T,std::pair<Combination,uint64_t>> scores;
         for (auto it = hands.begin(); it != hands.end(); ++it)
         {
-            auto player = it->first;
-            auto &hand =   it->second;
+            auto& player = it->first;
+            Hand hand =  it->second;
 
             scores[player] = get_score(hand);
             //auto future = std::async( [&] { this->get_score(std::cref(hand)); });
@@ -65,98 +69,116 @@ private:
         {
             return std::make_pair(Combination::KICKER,0);
         }
-        std::sort(hand.begin(),hand.end(),[&](const Card &first, const Card &second)
-        {
-            auto &first_score = PRIORITY_CARDS.find(first.value)->second;
-            auto &second_score = PRIORITY_CARDS.find(second.value)->second;
-            return first_score < second_score;
-        });
 
-        auto flush_res = is_flush(hand);
-        if(flush_res.first)
+        std::pair<Combination,uint64_t> res{Combination::KICKER,0};
+        auto flushes = find_flushes(hand);
+        if(flushes.size())
         {
-            auto begin_flush = flush_res.second;
-            Hand temp;
-            std::copy(hand.begin() + begin_flush, hand.begin() + begin_flush + 5, temp.begin());
-
-            auto res_straight = is_straight(temp);
-            if(res_straight)
+            res = get_max_res_flush(flushes);
+            if(res.first == Combination::STRAIGHT_FLUSH)
             {
-                auto value = res_straight * COMBINATION_MULS.find(Combination::STRAIGHT_FLUSH)->second;
-                return {Combination::STRAIGHT_FLUSH, value};
-            }
-            else
-            {
-                auto value = flush_res.first * COMBINATION_MULS.find(Combination::FLUSH)->second;
-                return {Combination::FLUSH, value};
+                return res;
             }
         }
-
-        auto res_straight = is_straight(hand);
-        if(res_straight)
+        else
         {
-            auto value = res_straight * COMBINATION_MULS.find(Combination::STRAIGHT)->second;
-            return {Combination::STRAIGHT, value};
+            auto score = is_straight(hand);
+            if(score)
+            {
+                res.first = Combination::STRAIGHT;
+                res.second = score;
+            }
         }
-
 
         auto res_pair = is_pair_combination(hand);
-        if(res_pair.first != Combination::KICKER)
+        if(res.second > res_pair.second)
+        {
+            return res;
+        }
+        else if(res.second < res_pair.second)
         {
             return res_pair;
         }
 
-        uint64_t res = 0;
+        uint64_t score = 0;
         for(size_t index = hand.size() - 1, count = 0; count < 5; --index, ++count)
         {
-            res += PRIORITY_CARDS.find(hand[index].value)->second;
+            score += PRIORITY_CARDS.find(hand[index].value)->second;
         }
-        return {Combination::KICKER, res};
+        return {Combination::KICKER, score};
     }
 
-    std::pair<uint64_t,int> is_flush(const Hand& hand)
-    {        
-        for(auto& suit : SUITS)
+    std::pair<Combination, uint64_t> get_max_res_flush(Flushes& flushes)
+    {
+        std::pair<Combination, uint64_t> res{Combination::FLUSH,0};
+        for(auto& flush : flushes)
         {
-            auto count_cards = std::count_if(hand.begin(),hand.end(),[&](Card value) { return value.suit == suit; });
-            if(count_cards >= 5)
+            auto& hand = flush.first;
+            auto& score = flush.second;
+            if(res.second < score)
             {
-                uint64_t res = 0;
-                auto index = hand.size();
-                short int count = 5;
-                while(count)
+                res.second = score;
+            }
+
+            auto score_straight_flush = is_straight(hand);
+            if(score_straight_flush)
+            {
+                score_straight_flush *= COMBINATION_MULS.find(Combination::STRAIGHT_FLUSH)->second;
+                if(res.second < score_straight_flush)
                 {
-                    if(hand[index].suit == suit)
-                    {
-                        auto &score = PRIORITY_CARDS.find(hand[index].value)->second;
-                        res += score;
-                        --count;
-                    }
-                    --index;
+                    res.first = Combination::STRAIGHT_FLUSH;
+                    res.second = score_straight_flush;
                 }
-                return {res, index+1};
             }
         }
-        return {0,0};
+        return res;
     }
 
-    uint64_t is_straight(Hand hand)
-    {        
+    Flushes find_flushes(const Hand& hand)
+    {
+        Flushes res;
+        for(auto& suit : SUITS)
+        {
+            auto count_cards = std::count_if(hand.begin(),hand.end(),[&](const Card& value) { return value.suit == suit; });
+            if(count_cards >= 5)
+            {
+                Hand all_cards(count_cards);
+                std::copy_if(hand.begin(),hand.end(),all_cards.begin(),[suit](const Card& card)
+                {
+                    return card.suit == suit;
+                });
+                for(size_t i = 0; i < all_cards.size(); i += 5)
+                {
+                    Hand cards(5);
+                    std::copy_n(all_cards.begin() + i, 5, cards.begin() + i);
+                    auto score = count_score(cards) * COMBINATION_MULS.find(Combination::FLUSH)->second;
+                    res.push_back({std::move(cards), score});
+                }
+            }
+        }
+        return res;
+    }
+
+    Hand exec_for_check_straight(const Hand& origin_hand)
+    {
+        Hand hand = origin_hand;
+        remove_pairs(hand);
+        add_ace_as_one(hand);
+        sort_by_value(hand);
+        return hand;
+    }
+
+    uint64_t is_straight(const Hand& origin_hand)
+    {
+        Hand hand = origin_hand;
+        add_ace_as_one(hand);
+        sort_by_value(hand);
         if(hand.size())
         {
-            Card ace_as_one{VALUES_CARDS::ACE,SUIT::CLUBS};
             int count = 1;
             uint64_t res = PRIORITY_CARDS.find(hand.back().value)->second;
             for(size_t i = hand.size() - 1; i > 0 && count < 5; --i)
             {
-                if(hand[i].value == VALUES_CARDS::ACE)
-                {
-                    ace_as_one = {VALUES_CARDS::ACE_AS_ONE,hand[i].suit};
-                }
-                if(hand[i].value == VALUES_CARDS::FIVE && count == 5 && ace_as_one.value == VALUES_CARDS::ACE_AS_ONE)
-                {
-                    hand.insert(hand.begin(),ace_as_one);
-                }
                 auto cur = PRIORITY_CARDS.find(hand[i].value)->second;
                 auto back = PRIORITY_CARDS.find(hand[i - 1].value)->second;
                 if(cur == 2*back)
@@ -170,10 +192,9 @@ private:
                     count = 1;
                 }
             }
-
             if(count == 5)
             {
-                return res;
+                return res * COMBINATION_MULS.find(Combination::STRAIGHT)->second;
             }
         }        
         return 0;
@@ -197,6 +218,7 @@ private:
         }
         return result;
     }
+
 
     std::pair<Combination,uint64_t> is_pair_combination(const Hand& hand)
     {
@@ -283,46 +305,92 @@ private:
     uint64_t find_score_any_max_card(const Hand &hand, size_t count, const std::vector<VALUES_CARDS> &exceptions = {})
     {
         uint64_t res = 0;
-        if(count <= hand.size())
+        if(count <= hand.size() - exceptions.size())
         {
             std::vector<VALUES_CARDS> temp;
-            for(size_t i = 0; i < count; i++)
+            for(int index = hand.size() - 1; index >= 0 && count != 0; --index)
             {
-                auto& card = *(std::max_element(hand.begin(), hand.end(),
-                [&](Card first, Card second)
+                if(std::find(exceptions.begin(), exceptions.end(),hand[index].value) == exceptions.end()
+                        && std::find(temp.begin(), temp.end(),hand[index].value) == temp.end())
                 {
-                    auto first_is_exception = std::find(exceptions.begin(), exceptions.end(),first.value) != exceptions.end();
-                    if(first_is_exception)
-                    {
-                        return false;
-                    }
-                    auto second_is_exception = std::find(exceptions.begin(), exceptions.end(),second.value) != exceptions.end();
-                    if(second_is_exception)
-                    {
-                        return false;
-                    }
-                    auto first_is_used = std::find(temp.begin(), temp.end(),first.value) != exceptions.end();
-                    if(first_is_used)
-                    {
-                        return false;
-                    }
-                    auto second_is_used = std::find(temp.begin(), temp.end(),second.value) != exceptions.end();
-                    if(second_is_used)
-                    {
-                        return false;
-                    }
-                    else
-                    {
-                        auto &first_score = PRIORITY_CARDS.find(first.value)->second;
-                        auto &second_score = PRIORITY_CARDS.find(second.value)->second;
-                        return first_score < second_score;
-                    }
-                }));
-                //temp.push_back(card.value);
-                res += PRIORITY_CARDS.find(card.value)->second;
+                    res += PRIORITY_CARDS.find(hand[index].value)->second;
+                    temp.push_back(hand[index].value);
+                    --count;
+                }
             }
         }
         return res;
+    }
+
+    uint64_t count_score(const Hand& hand)
+    {
+        uint64_t res = 0;
+        for(auto& item : hand)
+        {
+            auto &score = PRIORITY_CARDS.find(item.value)->second;
+            res += score;
+        }
+        return res;
+    }
+
+    void remove_pairs(Hand &hand)const
+    {
+        auto it = hand.begin();
+        if(it == hand.end())
+        {
+            return;
+        }
+        do
+        {
+            auto temp = *it;
+            auto count = std::count_if(hand.begin(), hand.end(),[&temp](Card &card)
+            {
+                return card.value == temp.value;
+            });
+            if(count > 1)
+            {
+                hand.erase(it);
+                it = hand.begin();
+            }
+            else
+            {
+                ++it;
+            }
+        }while(it != hand.end());
+    }
+
+    void sort_by_value(Hand& hand)
+    {
+        std::sort(hand.begin(),hand.end(),[&](const Card &first, const Card &second)
+        {
+            auto &first_score = PRIORITY_CARDS.find(first.value)->second;
+            auto &second_score = PRIORITY_CARDS.find(second.value)->second;
+            return first_score < second_score;
+        });
+    }
+
+    void sort_by_suit(Hand& hand)
+    {
+        std::sort(hand.begin(),hand.end(),[&](const Card &first, const Card &second)
+        {
+            return first.suit < second.suit;
+        });
+    }
+
+    void add_ace_as_one(Hand& hand)
+    {
+        auto cur = std::find_if(hand.begin(),hand.end(),[](Card& card)
+        {
+            return card.value == VALUES_CARDS::ACE;
+        });
+        while(cur != hand.end())
+        {
+            hand.push_back({VALUES_CARDS::ACE_AS_ONE, cur->suit});
+            cur = std::find_if(cur,hand.end(),[](Card& card)
+            {
+                return card.value == VALUES_CARDS::ACE;
+            });
+        }
     }
 };
 

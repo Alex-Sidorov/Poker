@@ -80,6 +80,11 @@ struct Card
     VALUES_CARDS value;
     SUIT suit;
 
+
+    bool operator==(const Card& item)
+    {
+        return item.value == value && item.suit == suit ? true : false;
+    }
     /*Card()
     {
         value = VALUES_CARDS::ACE_AS_ONE;
