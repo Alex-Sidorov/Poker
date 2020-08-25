@@ -47,15 +47,16 @@ Hand get_four_of_kind_combination()
 
     Hand res;
 
-    VALUES_CARDS value = VALUES_CARDS::ACE_AS_ONE;
-    while(value == VALUES_CARDS::ACE_AS_ONE)
+    VALUES_CARDS value = VALUES_CARDS::ACE;
+    /*while(value == VALUES_CARDS::ACE_AS_ONE)
     {
         value = VALUES[rand() % VALUES.size()];
-    }
+    }*/
     for(size_t i = 0; i < SUITS.size(); ++i)
     {
         res.push_back({value,SUITS[i]});
     }
+
 
     while(res.size() != COUNT)
     {
@@ -78,13 +79,17 @@ Hand get_flush()
 
     srand(time(0));
 
-    VALUES_CARDS value = VALUES_CARDS::ACE_AS_ONE;
+    VALUES_CARDS value = VALUES_CARDS::ACE;
     Hand res;
     while(res.size() != COUNT)
     {
         while(std::find_if(res.begin(), res.end(),[&value](Card v){return value == v.value;}) != res.end())
         {
             value = VALUES[rand() % VALUES.size()];
+            while(value == VALUES_CARDS::ACE_AS_ONE)
+            {
+                value = VALUES[rand() % VALUES.size()];
+            }
         }
         res.push_back({value,SUITS[0]});
     }
@@ -148,12 +153,50 @@ Hand get_rand_combination(size_t count)
     return res;
 }
 
+Hand get_full_haus()
+{
+    Hand res;
+    VALUES_CARDS value = VALUES_CARDS::ACE;
+    for(size_t i = 0; i < SUITS.size() - 1; ++i)
+    {
+        res.push_back({value,SUITS[i]});
+    }
+    value = VALUES_CARDS::TWO;
+    for(size_t i = 0; i < SUITS.size() - 2; ++i)
+    {
+        res.push_back({value,SUITS[i]});
+    }
+    while(res.size() != COUNT)
+    {
+        while(value == VALUES_CARDS::ACE_AS_ONE ||
+              std::find_if(res.begin(), res.end(),[&value](Card v){return value == v.value;}) != res.end())
+        {
+            value = VALUES[rand() % VALUES.size()];
+        }
+        res.push_back({value,SUITS[rand() % SUITS.size()]});
+    }
+    return res;
+}
+
+Hand get_straigth_flush()
+{
+    srand(time(0));
+
+    Hand res;
+    for (size_t i = 0; i < COUNT; ++i)
+    {
+        res.push_back({VALUES[i + 1], SUITS[0]});
+    }
+    return res;
+}
+
 int main()
 {
     Referee<int> referee;
 
     std::map<int,Hand> hands;
-    hands[0] = get_low_straigth();
+    hands[0] = get_straigth();
+    hands[1] = get_flush();
 
     auto res = referee.refereeing(hands);
 

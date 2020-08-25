@@ -13,39 +13,31 @@ template<class T>
 class Referee : public AbstractReferee<T>
 {
 
-    using Straights = std::vector<std::pair<uint64_t,size_t>>;
-    using StraightFlushes = Straights;
     using Flushes = std::vector<std::pair<Hand, uint64_t>>;
 
 public:
     Referee(){}
     virtual ~Referee(){}
 
-
     virtual std::map<T,Combination> refereeing(const std::map<T,Hand> &hands)
     {
-        //std::map<T,std::future<std::pair<Combination,uint64_t>>> scores;
-        std::map<T,std::pair<Combination,uint64_t>> scores;
+        std::map<T,std::future<std::pair<Combination,uint64_t>>> tasks;
         for (auto it = hands.begin(); it != hands.end(); ++it)
         {
             auto& player = it->first;
-            Hand hand =  it->second;
-
-            scores[player] = get_score(hand);
-            //auto future = std::async( [&] { this->get_score(std::cref(hand)); });
-            //scores.emplace(player, future);
+            tasks[player] = std::async(&Referee::get_score,this,std::cref(it->second));
         }
 
         uint64_t temp = 0;
 
         std::map<T,Combination> winner;
-        for (auto it = scores.begin(); it != scores.end(); ++it)
+        for (auto it = tasks.begin(); it != tasks.end(); ++it)
         {
             auto& player = it->first;
-            //auto res =  it->second.get();
-            auto &res = it->second;
-            auto &score = res.second;
+            std::pair<Combination,uint64_t> res = it->second.get();
+
             auto &combination = res.first;
+            auto &score = res.second;
 
             if(temp == score)
             {
@@ -63,7 +55,7 @@ public:
 
 private:
 
-    std::pair<Combination,uint64_t> get_score(Hand& hand)
+    std::pair<Combination,uint64_t> get_score(const Hand& hand)
     {
         if(hand.size() < 5)
         {
@@ -134,8 +126,11 @@ private:
         return res;
     }
 
-    Flushes find_flushes(const Hand& hand)
+    Flushes find_flushes(const Hand& origin_hand)
     {
+        Hand hand = origin_hand;
+        sort_by_value(hand);
+
         Flushes res;
         for(auto& suit : SUITS)
         {
@@ -147,10 +142,10 @@ private:
                 {
                     return card.suit == suit;
                 });
-                for(size_t i = 0; i < all_cards.size(); i += 5)
+                for(size_t i = 0; i <= all_cards.size() - 5; ++i)
                 {
                     Hand cards(5);
-                    std::copy_n(all_cards.begin() + i, 5, cards.begin() + i);
+                    std::copy_n(all_cards.begin() + i, 5, cards.begin());
                     auto score = count_score(cards) * COMBINATION_MULS.find(Combination::FLUSH)->second;
                     res.push_back({std::move(cards), score});
                 }
@@ -171,6 +166,7 @@ private:
     uint64_t is_straight(const Hand& origin_hand)
     {
         Hand hand = origin_hand;
+        remove_pairs(hand);
         add_ace_as_one(hand);
         sort_by_value(hand);
         if(hand.size())
@@ -385,12 +381,13 @@ private:
         });
         while(cur != hand.end())
         {
-            hand.push_back({VALUES_CARDS::ACE_AS_ONE, cur->suit});
+            cur = hand.insert(cur + 1,{VALUES_CARDS::ACE_AS_ONE, cur->suit});
             cur = std::find_if(cur,hand.end(),[](Card& card)
             {
                 return card.value == VALUES_CARDS::ACE;
             });
         }
+
     }
 };
 
